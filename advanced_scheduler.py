@@ -357,6 +357,144 @@ class AdvancedInterviewScheduler:
         
         return self._get_schedule_by_group()
     
+    def schedule_interviews_interviewer_friendly(self) -> Dict[str, Dict[str, str]]:
+        """
+        면접관 친화적 스케줄링 - A/B조가 동시에 시작하고 끝나도록 배치
+        중간 시간대부터 채워서 면접관들이 함께 쉬고 함께 끝날 수 있도록 함
+        
+        Returns:
+            {"A": {slot: team_name}, "B": {slot: team_name}}
+        """
+        # 모든 time_slots 초기화
+        for slot in self.time_slots:
+            self.time_slots[slot].group_a_team = None
+            self.time_slots[slot].group_b_team = None
+        
+        # 팀 상태 초기화
+        for team in self.teams:
+            team.assigned_slot = None
+            team.assigned_group = None
+            team.conflict_reason = None
+        
+        # 1단계: 특정 시간대만 가능한 제약이 큰 팀들 먼저 처리
+        single_slot_teams = [t for t in self.teams if len(t.available_slots) == 1]
+        
+        for team in single_slot_teams:
+            slot = team.available_slots[0]
+            if slot in self.time_slots:
+                time_slot = self.time_slots[slot]
+                
+                # A조가 비어있으면 A조에, 아니면 B조에 배치
+                if time_slot.group_a_team is None:
+                    time_slot.group_a_team = team.name
+                    team.assigned_slot = slot
+                    team.assigned_group = "A"
+                elif time_slot.group_b_team is None:
+                    time_slot.group_b_team = team.name
+                    team.assigned_slot = slot
+                    team.assigned_group = "B"
+        
+        # 2단계: 중간 시간대 우선순위 설정 (처음과 끝을 피하고 중간부터)
+        priority_slots = self._get_middle_first_priority()
+        
+        # 3단계: 짝을 맞춰서 배치 (A/B조 동시 배치)
+        remaining_teams = [t for t in self.teams if t.assigned_slot is None]
+        remaining_teams.sort(key=lambda t: len(t.available_slots))  # 제약 많은 팀부터
+        
+        for slot in priority_slots:
+            if slot not in self.time_slots:
+                continue
+                
+            time_slot = self.time_slots[slot]
+            
+            # 이미 한 조라도 차있으면 짝을 맞춰줌
+            if time_slot.group_a_team and not time_slot.group_b_team:
+                # A조만 있으면 B조 채우기
+                for team in remaining_teams:
+                    if team.assigned_slot is None and slot in team.available_slots:
+                        time_slot.group_b_team = team.name
+                        team.assigned_slot = slot
+                        team.assigned_group = "B"
+                        break
+            elif time_slot.group_b_team and not time_slot.group_a_team:
+                # B조만 있으면 A조 채우기
+                for team in remaining_teams:
+                    if team.assigned_slot is None and slot in team.available_slots:
+                        time_slot.group_a_team = team.name
+                        team.assigned_slot = slot
+                        team.assigned_group = "A"
+                        break
+            elif not time_slot.group_a_team and not time_slot.group_b_team:
+                # 둘 다 비어있으면 짝을 맞춰서 배치
+                teams_for_slot = [t for t in remaining_teams 
+                                 if t.assigned_slot is None and slot in t.available_slots]
+                
+                if len(teams_for_slot) >= 2:
+                    # 두 팀을 동시에 배치
+                    time_slot.group_a_team = teams_for_slot[0].name
+                    teams_for_slot[0].assigned_slot = slot
+                    teams_for_slot[0].assigned_group = "A"
+                    
+                    time_slot.group_b_team = teams_for_slot[1].name
+                    teams_for_slot[1].assigned_slot = slot
+                    teams_for_slot[1].assigned_group = "B"
+                elif len(teams_for_slot) == 1:
+                    # 한 팀만 가능하면 일단 보류 (나중에 처리)
+                    pass
+        
+        # 4단계: 남은 팀들 처리 (짝이 안 맞는 경우)
+        for team in self.teams:
+            if team.assigned_slot is None:
+                for slot in team.available_slots:
+                    if slot in self.time_slots:
+                        time_slot = self.time_slots[slot]
+                        
+                        if time_slot.has_space():
+                            group = time_slot.get_available_group()
+                            if group == "A":
+                                time_slot.group_a_team = team.name
+                            else:
+                                time_slot.group_b_team = team.name
+                            
+                            team.assigned_slot = slot
+                            team.assigned_group = group
+                            break
+                
+                if team.assigned_slot is None:
+                    team.conflict_reason = self._analyze_conflict(team)
+        
+        return self._get_schedule_by_group()
+    
+    def _get_middle_first_priority(self) -> List[str]:
+        """
+        중간 시간대를 우선하는 슬롯 순서 반환
+        각 날짜별로 중간부터 양 끝으로 확장
+        """
+        priority_slots = []
+        
+        for date in ["9/12", "9/13", "9/14"]:
+            date_slots = [s for s in self.all_slots if s.startswith(date)]
+            
+            if not date_slots:
+                continue
+            
+            # 중간 인덱스 찾기
+            mid = len(date_slots) // 2
+            
+            # 중간부터 양쪽으로 확장하며 추가
+            left = mid - 1
+            right = mid
+            
+            while left >= 0 or right < len(date_slots):
+                if right < len(date_slots):
+                    priority_slots.append(date_slots[right])
+                    right += 1
+                if left >= 0:
+                    priority_slots.append(date_slots[left])
+                    left -= 1
+        
+        return priority_slots
+    
     def optimize_schedule(self, max_iterations: int = 100) -> Dict[str, Dict[str, str]]:
         """
         최적화된 연속 스케줄 찾기

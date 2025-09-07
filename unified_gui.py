@@ -83,11 +83,11 @@ st.markdown("""
 st.sidebar.markdown("### ⚙️ 스케줄링 설정")
 optimization_mode = st.sidebar.selectbox(
     "최적화 모드",
-    ["continuous", "max_teams", "balanced"],
+    ["continuous", "max_teams", "interviewer_friendly"],
     format_func=lambda x: {
         "continuous": "🔄 연속 스케줄링 (간격 최소화)",
         "max_teams": "👥 최대 팀 배치",
-        "balanced": "⚖️ 균형 스케줄링"
+        "interviewer_friendly": "🤝 면접관 친화적 (짝 맞춰 배치)"
     }[x]
 )
 
@@ -266,8 +266,8 @@ with tabs[2]:
                         result = scheduler.schedule_interviews_continuous()
                     elif optimization_mode == 'max_teams':
                         result = scheduler.schedule_interviews_max_teams()
-                    else:
-                        result = scheduler.schedule_interviews_balanced()
+                    else:  # interviewer_friendly
+                        result = scheduler.schedule_interviews_interviewer_friendly()
                     
                     # 결과 처리
                     if isinstance(result, tuple) and len(result) == 2:
