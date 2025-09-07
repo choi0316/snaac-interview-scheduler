@@ -225,6 +225,138 @@ class AdvancedInterviewScheduler:
                 })
         return unassigned
     
+    def schedule_interviews_max_teams(self) -> Dict[str, Dict[str, str]]:
+        """
+        최대 팀 배치 알고리즘 - 가능한 많은 팀을 배치
+        
+        Returns:
+            {"A": {slot: team_name}, "B": {slot: team_name}}
+        """
+        # 모든 time_slots 초기화
+        for slot in self.time_slots:
+            self.time_slots[slot].group_a_team = None
+            self.time_slots[slot].group_b_team = None
+        
+        # 팀 상태 초기화
+        for team in self.teams:
+            team.assigned_slot = None
+            team.assigned_group = None
+            team.conflict_reason = None
+        
+        # 팀을 가능한 슬롯 수로 정렬 (제약이 많은 팀부터)
+        sorted_teams = sorted(self.teams, key=lambda t: len(t.available_slots))
+        
+        for team in sorted_teams:
+            # 이미 배치된 팀은 건너뛰기
+            if team.assigned_slot:
+                continue
+                
+            assigned = False
+            
+            # 모든 가능한 슬롯 시도
+            for slot in team.available_slots:
+                if slot in self.time_slots:
+                    time_slot = self.time_slots[slot]
+                    
+                    if time_slot.has_space():
+                        group = time_slot.get_available_group()
+                        if group == "A":
+                            time_slot.group_a_team = team.name
+                        else:
+                            time_slot.group_b_team = team.name
+                        
+                        team.assigned_slot = slot
+                        team.assigned_group = group
+                        assigned = True
+                        break  # 한 팀은 한 시간대만 배치
+            
+            if not assigned:
+                # 배치 실패 이유 분석
+                team.conflict_reason = self._analyze_conflict(team)
+        
+        return self._get_schedule_by_group()
+    
+    def schedule_interviews_balanced(self) -> Dict[str, Dict[str, str]]:
+        """
+        균형 배치 알고리즘 - A/B조 균형있게 배치
+        
+        Returns:
+            {"A": {slot: team_name}, "B": {slot: team_name}}
+        """
+        # 모든 time_slots 초기화
+        for slot in self.time_slots:
+            self.time_slots[slot].group_a_team = None
+            self.time_slots[slot].group_b_team = None
+        
+        # 팀 상태 초기화
+        for team in self.teams:
+            team.assigned_slot = None
+            team.assigned_group = None
+            team.conflict_reason = None
+        
+        # 팀을 가능한 슬롯 수로 정렬 (제약이 많은 팀부터)
+        sorted_teams = sorted(self.teams, key=lambda t: len(t.available_slots))
+        
+        # A/B 그룹 균형 카운터
+        a_count = 0
+        b_count = 0
+        
+        for team in sorted_teams:
+            # 이미 배치된 팀은 건너뛰기
+            if team.assigned_slot:
+                continue
+                
+            assigned = False
+            prefer_group = "A" if a_count <= b_count else "B"
+            
+            # 선호 그룹으로 먼저 시도
+            for slot in team.available_slots:
+                if slot in self.time_slots:
+                    time_slot = self.time_slots[slot]
+                    
+                    if prefer_group == "A" and time_slot.group_a_team is None:
+                        time_slot.group_a_team = team.name
+                        team.assigned_slot = slot
+                        team.assigned_group = "A"
+                        a_count += 1
+                        assigned = True
+                        break
+                    elif prefer_group == "B" and time_slot.group_b_team is None:
+                        time_slot.group_b_team = team.name
+                        team.assigned_slot = slot
+                        team.assigned_group = "B"
+                        b_count += 1
+                        assigned = True
+                        break
+            
+            # 선호 그룹으로 배치 실패시 다른 그룹으로 시도
+            if not assigned:
+                other_group = "B" if prefer_group == "A" else "A"
+                for slot in team.available_slots:
+                    if slot in self.time_slots:
+                        time_slot = self.time_slots[slot]
+                        
+                        if other_group == "A" and time_slot.group_a_team is None:
+                            time_slot.group_a_team = team.name
+                            team.assigned_slot = slot
+                            team.assigned_group = "A"
+                            a_count += 1
+                            assigned = True
+                            break
+                        elif other_group == "B" and time_slot.group_b_team is None:
+                            time_slot.group_b_team = team.name
+                            team.assigned_slot = slot
+                            team.assigned_group = "B"
+                            b_count += 1
+                            assigned = True
+                            break
+            
+            if not assigned:
+                # 배치 실패 이유 분석
+                team.conflict_reason = self._analyze_conflict(team)
+        
+        return self._get_schedule_by_group()
+    
     def optimize_schedule(self, max_iterations: int = 100) -> Dict[str, Dict[str, str]]:
         """
         최적화된 연속 스케줄 찾기
