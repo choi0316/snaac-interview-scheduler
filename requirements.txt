@@ -1,0 +1,39 @@
+# 공모전 면접 스케줄링 시스템 - 핵심 의존성
+# PDF Processing - 한글 텍스트 지원
+pdfplumber>=0.9.0
+PyPDF2>=3.0.1
+pymupdf>=1.23.0
+
+# Optimization Engine - 제약 만족 문제 해결
+ortools>=9.7.2960
+
+# Data Processing
+pandas>=2.0.3
+numpy>=1.24.3
+openpyxl>=3.1.2
+
+# Excel Generation - 고급 서식 지원
+xlsxwriter>=3.1.2
+
+# Email Validation
+email-validator>=2.0.0
+dnspython>=2.4.2
+
+# Web Interface  
+streamlit>=1.28.1
+plotly>=5.17.0
+
+# Testing
+pytest>=7.4.2
+pytest-cov>=4.1.0
+pytest-mock>=3.11.1
+
+# Utilities
+python-dotenv>=1.0.0
+colorlog>=6.7.0
+tqdm>=4.66.1
+
+# Development
+black>=23.9.1
+flake8>=6.1.0
+mypy>=1.6.1

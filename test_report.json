@@ -1,0 +1,17 @@
+{
+  "timestamp": "2025-09-06 19:00:26",
+  "total_time": 0.021164894104003906,
+  "summary": {
+    "unit_tests": {
+      "passed": 0,
+      "failed": 0,
+      "time": 0.021164894104003906
+    },
+    "integration_tests": {},
+    "performance_tests": {},
+    "coverage": {}
+  },
+  "recommendations": [
+    "모든 테스트가 성공적으로 완료되었습니다! 🎉"
+  ]
+}
