@@ -14,7 +14,13 @@ from dataclasses import dataclass
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from ..core.models import EmailValidationResult
+try:
+    from ..core.models import EmailValidationResult
+except ImportError:
+    import sys
+    from pathlib import Path
+    sys.path.append(str(Path(__file__).parent.parent))
+    from core.models import EmailValidationResult
 
 logger = logging.getLogger(__name__)
 

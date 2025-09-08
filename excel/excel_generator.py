@@ -20,7 +20,13 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.chart import BarChart, PieChart, Reference
 import io
 
-from ..core.models import Schedule, SchedulingOption, SchedulingResult
+try:
+    from ..core.models import Schedule, SchedulingOption, SchedulingResult
+except ImportError:
+    import sys
+    from pathlib import Path
+    sys.path.append(str(Path(__file__).parent.parent))
+    from core.models import Schedule, SchedulingOption, SchedulingResult
 
 logger = logging.getLogger(__name__)
 

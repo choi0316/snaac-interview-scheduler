@@ -23,7 +23,7 @@ from core.pdf_extractor import PDFExtractor
 from core.scheduler_engine import InterviewScheduler
 from excel.excel_generator import ExcelGenerator
 from email_system.email_validator import EmailValidator
-from email_system.template_manager import TemplateManager
+from email_system.template_manager import EmailTemplateManager
 
 # Streamlit 페이지 설정
 st.set_page_config(
