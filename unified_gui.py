@@ -12,6 +12,7 @@ import os
 from typing import Dict, List, Tuple, Optional
 from advanced_scheduler import AdvancedInterviewScheduler, TimeSlot
 from improved_pdf_processor import process_pdf_file
+from team_editor_component import render_team_editor, render_manual_team_adder
 import openpyxl
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from io import BytesIO
@@ -149,85 +150,120 @@ with tabs[0]:
 
 # 탭 2: 팀 관리
 with tabs[1]:
-    st.markdown("### 👥 등록된 팀 정보")
+    st.markdown("### 👥 팀 관리 및 편집")
+    
+    # 수동 팀 추가 섹션
+    with st.expander("➕ 새 팀 수동 추가", expanded=False):
+        result = render_manual_team_adder()
+        if result:
+            team_name, team_info = result
+            if team_name not in st.session_state.teams:
+                st.session_state.teams[team_name] = team_info
+                st.success(f"✅ {team_name} 팀이 추가되었습니다!")
+                st.rerun()
+            else:
+                st.error(f"이미 {team_name}이라는 팀이 존재합니다.")
     
     if st.session_state.teams:
-        # 팀 목록과 상세정보를 나란히 표시 (반반 비율)
-        col_list, col_detail = st.columns([1, 1])
+        # 팀 목록과 상세정보를 나란히 표시
+        col_list, col_detail = st.columns([1, 2])
         
         with col_list:
             st.markdown("**📋 팀 목록**")
-            team_data = []
-            for team_name, info in st.session_state.teams.items():
-                team_data.append({
-                    '팀명': team_name,
-                    '대표자': info.get('대표자명', 'N/A'),
-                    '파일명': info.get('파일명', 'N/A'),
-                    '가능 시간수': len(info.get('가능시간', []))
-                })
-            
-            df_teams = pd.DataFrame(team_data)
-            st.dataframe(df_teams, use_container_width=True, hide_index=True)
-            
-            # 팀 선택
-            st.markdown("---")
             selected_team = st.selectbox(
-                "🔍 상세정보 볼 팀 선택",
-                options=["선택하세요..."] + list(st.session_state.teams.keys()),
-                key="team_selector"
+                "팀 선택",
+                list(st.session_state.teams.keys()),
+                format_func=lambda x: f"📌 {x}"
             )
+            
+            col_del, col_edit = st.columns(2)
+            with col_del:
+                if st.button("🗑️ 삭제", key="delete_team"):
+                    if selected_team:
+                        del st.session_state.teams[selected_team]
+                        st.success(f"✅ {selected_team} 팀이 삭제되었습니다.")
+                        st.rerun()
+            
+            with col_edit:
+                # 편집 모드 토글
+                edit_mode_key = f"edit_mode_{selected_team}"
+                if st.button("✏️ 편집", key="edit_team"):
+                    st.session_state[edit_mode_key] = not st.session_state.get(edit_mode_key, False)
+                    st.rerun()
         
         with col_detail:
             st.markdown("**📄 팀 상세정보**")
             
-            if selected_team and selected_team != "선택하세요...":
+            if selected_team:
                 team_info = st.session_state.teams[selected_team]
+                edit_mode_key = f"edit_mode_{selected_team}"
                 
-                # 상세정보 카드
-                st.markdown(f"""
-                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                           color: white; padding: 1.5rem; border-radius: 10px; margin-bottom: 1rem;">
-                    <h3 style="margin: 0 0 1rem 0;">🏢 {selected_team}</h3>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                        <div>
-                            <strong>👤 대표자:</strong><br>{team_info.get('대표자명', '정보 없음')}
-                        </div>
-                        <div>
-                            <strong>📧 이메일:</strong><br>{team_info.get('이메일', '정보 없음')}
-                        </div>
-                        <div>
-                            <strong>📞 전화번호:</strong><br>{team_info.get('전화번호', '정보 없음')}
-                        </div>
-                        <div>
-                            <strong>⏰ 가능 시간:</strong><br>{len(team_info.get('가능시간', []))}개 시간대
-                        </div>
-                        <div style="grid-column: 1 / -1; margin-top: 0.5rem;">
-                            <strong>📄 파일명:</strong><br>{team_info.get('파일명', '정보 없음')}
+                # 편집 모드인 경우
+                if st.session_state.get(edit_mode_key, False):
+                    # 팀 정보 편집 UI 렌더링
+                    updated_info = render_team_editor(selected_team, team_info)
+                    
+                    # 저장 및 취소 버튼
+                    col_save, col_cancel = st.columns(2)
+                    with col_save:
+                        if st.button("💾 저장", key=f"save_{selected_team}"):
+                            st.session_state.teams[selected_team] = updated_info
+                            st.session_state[edit_mode_key] = False
+                            st.success(f"✅ {selected_team} 팀 정보가 업데이트되었습니다.")
+                            st.rerun()
+                    
+                    with col_cancel:
+                        if st.button("❌ 취소", key=f"cancel_{selected_team}"):
+                            st.session_state[edit_mode_key] = False
+                            st.rerun()
+                
+                # 읽기 전용 모드
+                else:
+                    # 상세정보 카드
+                    st.markdown(f"""
+                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                               color: white; padding: 1.5rem; border-radius: 10px; margin-bottom: 1rem;">
+                        <h3 style="margin: 0 0 1rem 0;">🏢 {selected_team}</h3>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div>
+                                <strong>👤 대표자:</strong><br>{team_info.get('대표자명', '정보 없음')}
+                            </div>
+                            <div>
+                                <strong>📧 이메일:</strong><br>{team_info.get('이메일', '정보 없음')}
+                            </div>
+                            <div>
+                                <strong>📞 전화번호:</strong><br>{team_info.get('전화번호', '정보 없음')}
+                            </div>
+                            <div>
+                                <strong>⏰ 가능 시간:</strong><br>{len(team_info.get('가능시간', []))}개 시간대
+                            </div>
+                            <div style="grid-column: 1 / -1; margin-top: 0.5rem;">
+                                <strong>📄 파일명:</strong><br>{team_info.get('파일명', '정보 없음')}
+                            </div>
                         </div>
                     </div>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # 가능 시간 목록
-                if team_info.get('가능시간'):
-                    st.markdown("**📅 면접 가능 시간 목록**")
+                    """, unsafe_allow_html=True)
                     
-                    # 날짜별로 정리
-                    time_by_date = {"9/12": [], "9/13": [], "9/14": []}
-                    for time_slot in team_info.get('가능시간', []):
-                        for date in time_by_date.keys():
-                            if time_slot.startswith(date):
-                                time_by_date[date].append(time_slot.replace(f"{date} ", ""))
-                    
-                    # 날짜별 표시
-                    date_names = {"9/12": "9월 12일 (금)", "9/13": "9월 13일 (토)", "9/14": "9월 14일 (일)"}
-                    for date, times in time_by_date.items():
-                        if times:
-                            with st.expander(f"📅 {date_names[date]} ({len(times)}개 시간)"):
-                                for time in sorted(times):
-                                    st.write(f"• {time}")
-                else:
-                    st.info("면접 가능 시간 정보가 없습니다.")
+                    # 가능 시간 목록
+                    if team_info.get('가능시간'):
+                        st.markdown("**📅 면접 가능 시간 목록**")
+                        
+                        # 날짜별로 정리
+                        time_by_date = {"9/12": [], "9/13": [], "9/14": []}
+                        for time_slot in team_info.get('가능시간', []):
+                            for date in time_by_date.keys():
+                                if time_slot.startswith(date):
+                                    time_by_date[date].append(time_slot.replace(f"{date} ", ""))
+                        
+                        # 날짜별 표시
+                        date_names = {"9/12": "9월 12일 (금)", "9/13": "9월 13일 (토)", "9/14": "9월 14일 (일)"}
+                        for date, times in time_by_date.items():
+                            if times:
+                                with st.expander(f"📅 {date_names[date]} ({len(times)}개 시간)"):
+                                    for time in sorted(times):
+                                        st.write(f"• {time}")
+                    else:
+                        st.info("면접 가능 시간 정보가 없습니다. 편집 버튼을 눌러 시간대를 추가할 수 있습니다.")
             else:
                 st.info("좌측에서 팀을 선택하면 상세정보가 표시됩니다.")
         
@@ -237,12 +273,15 @@ with tabs[1]:
         with col1:
             st.metric("총 팀 수", len(st.session_state.teams))
         with col2:
-            avg_slots = sum(len(info.get('가능시간', [])) for info in st.session_state.teams.values()) / len(st.session_state.teams)
-            st.metric("평균 가능 시간", f"{avg_slots:.1f}개")
+            if st.session_state.teams:
+                avg_slots = sum(len(info.get('가능시간', [])) for info in st.session_state.teams.values()) / len(st.session_state.teams)
+                st.metric("평균 가능 시간", f"{avg_slots:.1f}개")
+            else:
+                st.metric("평균 가능 시간", "0개")
         with col3:
             st.metric("업로드 파일", len(st.session_state.uploaded_files))
     else:
-        st.info("아직 업로드된 팀이 없습니다.")
+        st.info("아직 업로드된 팀이 없습니다. PDF 파일을 업로드하거나 '새 팀 수동 추가'를 사용해주세요.")
 
 # 탭 3: 스케줄링
 with tabs[2]:
