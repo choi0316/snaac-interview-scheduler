@@ -7,7 +7,7 @@ PDF 데이터 추출 모듈 - 한글 텍스트 지원 최적화
 
 import re
 import logging
-from typing import List, Dict, Optional, Tuple, Union
+from typing import List, Dict, Optional, Tuple, Union, Any
 from pathlib import Path
 import pdfplumber
 import PyPDF2
@@ -35,6 +35,9 @@ class ExtractionConfig:
 
 class PDFExtractor:
     """PDF 데이터 추출기 - 한글 최적화"""
+    
+    # Wingdings2 체크마크 문자
+    WINGDINGS_CHECK = '\uf050'  # U+F050
     
     def __init__(self, config: Optional[ExtractionConfig] = None):
         self.config = config or ExtractionConfig()
@@ -488,6 +491,73 @@ class PDFExtractor:
                     return f"{int(start_hour):02d}:00-{int(end_hour):02d}:00"
         
         return None
+    
+    def extract_interview_availability(self, pdf_path: Union[str, Path]) -> Dict[str, Any]:
+        """인터뷰 가능 시간대 추출 - Wingdings2 체크마크 지원"""
+        pdf_path = Path(pdf_path)
+        
+        if not pdf_path.exists():
+            logger.error(f"PDF 파일을 찾을 수 없음: {pdf_path}")
+            return {}
+        
+        result = {
+            'team_info': {},
+            'time_slots': []
+        }
+        
+        try:
+            with pdfplumber.open(pdf_path) as pdf:
+                for page in pdf.pages:
+                    text = page.extract_text()
+                    
+                    # 팀 정보 추출
+                    if "팀명" in text and "대표자명" in text:
+                        team_match = re.search(r'팀명\s+([^\s]+)\s+대표자명', text)
+                        if team_match:
+                            result['team_info']['name'] = team_match.group(1)
+                        
+                        email_match = re.search(r'([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})', text)
+                        if email_match:
+                            result['team_info']['email'] = email_match.group(1)
+                    
+                    # 시간대 정보 추출
+                    if "[인터뷰 가능 시간대]" in text or "시간대" in text:
+                        tables = page.extract_tables()
+                        
+                        if not hasattr(self, '_slot_number'):
+                            self._slot_number = 1
+                        
+                        for table in tables:
+                            for row in table:
+                                time_slot = None
+                                has_check = False
+                                
+                                for cell in row:
+                                    if cell:
+                                        # 시간대 패턴
+                                        time_match = re.search(r'(\d{1,2}:\d{2}~\d{1,2}:\d{2})', str(cell))
+                                        if time_match:
+                                            time_slot = time_match.group(1)
+                                        
+                                        # Wingdings2 체크마크 확인
+                                        if self.WINGDINGS_CHECK in str(cell):
+                                            has_check = True
+                                        # 일반 O/X 마크 확인 (폴백)
+                                        elif re.search(r'[OoＯ○◯]', str(cell)):
+                                            has_check = True
+                                
+                                if time_slot:
+                                    result['time_slots'].append({
+                                        'number': self._slot_number,
+                                        'time': time_slot,
+                                        'available': has_check
+                                    })
+                                    self._slot_number += 1
+                    
+        except Exception as e:
+            logger.error(f"PDF 파싱 오류: {e}")
+        
+        return result
     
     def _parse_members_text(self, text: str) -> List[str]:
         """팀원 텍스트에서 개별 이름 추출"""
