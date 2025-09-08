@@ -1,6 +1,7 @@
 """
 개선된 PDF 처리 모듈
 면접 신청서 형식에 맞춘 정확한 파싱
+Wingdings2 체크마크 지원 추가
 """
 
 import pdfplumber
@@ -8,6 +9,9 @@ import re
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime
+
+# Wingdings2 체크마크 문자
+WINGDINGS_CHECK = '\uf050'
 
 @dataclass
 class TeamInfo:
@@ -247,9 +251,9 @@ class ImprovedPDFProcessor:
                             # 가용성 체크 - 더 정확한 로직
                             is_available = False
                             
-                            # 1. 같은 줄에 체크가 있는가? (V, 0, ㅇ 추가)
+                            # 1. 같은 줄에 체크가 있는가? (V, 0, ㅇ, Wingdings2 추가)
                             after_time = line[time_match.end():].strip()
-                            if after_time and any(c in after_time for c in ['O', 'o', '○', '●', '✓', '✔', '☑', 'V', 'v', '0', 'ㅇ']):
+                            if after_time and any(c in after_time for c in ['O', 'o', '○', '●', '✓', '✔', '☑', 'V', 'v', '0', 'ㅇ', WINGDINGS_CHECK]):
                                 is_available = True
                                 print(f"✅ 슬롯 #{slot_num}: {date} {expected_time} - 가능 (같은줄: {after_time[:20]})")
                             else:
@@ -257,9 +261,9 @@ class ImprovedPDFProcessor:
                                 if line_idx + 1 < len(section_lines):
                                     next_line = section_lines[line_idx + 1].strip()
                                     
-                                    # 다음 줄에 체크표시가 있는가? (V, 0, ㅇ 추가)
+                                    # 다음 줄에 체크표시가 있는가? (V, 0, ㅇ, Wingdings2 추가)
                                     # 단, 다음 줄이 숫자로 시작하면 다음 슬롯이므로 체크 아님
-                                    if not re.match(r'^\d+\s', next_line) and any(c in next_line for c in ['O', 'o', '○', '●', '✓', '✔', '☑', 'V', 'v', '0', 'ㅇ']):
+                                    if not re.match(r'^\d+\s', next_line) and any(c in next_line for c in ['O', 'o', '○', '●', '✓', '✔', '☑', 'V', 'v', '0', 'ㅇ', WINGDINGS_CHECK]):
                                         is_available = True
                                         # 날짜가 포함된 경우도 처리
                                         if '9/1' in next_line:
